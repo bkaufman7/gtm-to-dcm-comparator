@@ -1,0 +1,29 @@
+{
+  "timeZone": "America/New_York",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "DoubleClickCampaigns",
+        "serviceId": "dfareporting",
+        "version": "v4"
+      },
+      {
+        "userSymbol": "TagManager",
+        "serviceId": "tagmanager",
+        "version": "v2"
+      },
+      {
+        "userSymbol": "Drive",
+        "serviceId": "drive",
+        "version": "v3"
+      },
+      {
+        "userSymbol": "Gmail",
+        "serviceId": "gmail",
+        "version": "v1"
+      }
+    ]
+  }
+}
