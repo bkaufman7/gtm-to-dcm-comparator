@@ -22,6 +22,13 @@ var USER_INPUT_HEADER_COLOR = '#b6d7a8';
 var AUTO_POP_CELL_COLOR = 'lightgray';
 var AUTO_POP_FLOODLIGHT_COLOR = '#99ccff';
 
+// Tab color scheme
+const TAB_COLOR_GTM     = "#4A86E8"; // Blue for GTM tabs
+const TAB_COLOR_DCM     = "#6AA84F"; // Green for DCM tabs
+const TAB_COLOR_COMPARE = "#9900FF"; // Purple for Compare tabs
+const TAB_COLOR_SETUP   = "#E69138"; // Orange for setup/config tabs
+const TAB_COLOR_SYSTEM  = "#999999"; // Gray for system/hidden tabs
+
 
 // Data range values
 var DCMUserProfileID = 'DCMUserProfileID';
@@ -52,6 +59,19 @@ function _fetchProfileId() {
     throw new Error('Missing Profile/Advertiser ID.');
   }
   return [profileId, advertiserId];
+}
+
+/**
+ * Safely set tab color for a sheet.
+ * @param {string} sheetName The name of the sheet to color.
+ * @param {string} hexColor The hex color code (e.g., "#4A86E8").
+ */
+function setTabColor_(sheetName, hexColor) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sh = ss.getSheetByName(sheetName);
+    if (sh) sh.setTabColor(hexColor);
+  } catch (_) {}
 }
 
 
@@ -201,6 +221,7 @@ function _setupSetupSheet() {
     sheet.getRange('C6').setNumberFormat('@').setValue(savedAdvertiser);
   }
 
+  setTabColor_(SETUP_SHEET, TAB_COLOR_SETUP);
   return sheet;
 }
 
@@ -226,6 +247,7 @@ function _setupFloodlightActivitiesSheet() {
   sheet.getRange('A2:A').setNumberFormat('@');
   sheet.getRange('G2:G').setNumberFormat('@');
 
+  setTabColor_(ACTIVITES_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -257,7 +279,7 @@ function _setupDefaultTagsSheet() {
       .setFontWeight('bold')
       .setWrap(true);
       
-      
+  setTabColor_(DEFAULT_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -305,6 +327,7 @@ function _setupPublisherTagsSheet() {
   sheet.setFrozenRows(1);
   sheet.setRowHeight(1, 24);
 
+  setTabColor_(PUBLISHER_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -363,6 +386,7 @@ function _setupRemarketingListSheet() {
       .setBackground(AUTO_POP_HEADER_COLOR);
 
   sheet.getRange('A1:G1').setFontWeight('bold').setWrap(true).createFilter();
+  setTabColor_(REMARKETING_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -399,6 +423,7 @@ function _setupAudienceQASheet() {
  sheet.hideColumns(5);
  
   sheet.getRange('A1:G1').setFontWeight('bold').setWrap(true);
+  setTabColor_(AUDIENCEQA_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -449,6 +474,7 @@ function _setupBuildAudienceSheet() {
   var listSourceRule = SpreadsheetApp.newDataValidation().requireValueInList(['REMARKETING_LIST_SOURCE_DFA'], true).build();
   sheet.getRange('G2:G').setDataValidation(listSourceRule);  
 
+  setTabColor_(BUILDAUDIENCE_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -520,6 +546,7 @@ function _setupCreateFloodlightSheet() {
 
   try { refreshGtmContainersDropdown_ && refreshGtmContainersDropdown_(); } catch (_) {}
 
+  setTabColor_(CREATE_FLOODLIGHT_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -531,6 +558,7 @@ function _setupDownloadFloodlightSheet() {
       .setBackground(USER_INPUT_HEADER_COLOR);
    
   sheet.getRange('A1').setFontWeight('bold').setWrap(true);
+  setTabColor_(DOWNLOAD_FLOODLIGHTS_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
@@ -565,7 +593,7 @@ function _setupFloodlightSheet() {
   sheet.getRange('B2:F2')
       .setValue('How to Implement Floodlight Tags')
       .merge()
-      .setFontSize(08)
+      .setFontSize(8)
       .setVerticalAlignment("bottom")
       .setFontWeight('bold')
       .setBackground(AUTO_POP_FLOODLIGHT_COLOR)
@@ -575,7 +603,7 @@ function _setupFloodlightSheet() {
       .merge()
       .setWrap(true)
       .setVerticalAlignment("bottom")
-      .setFontSize(08)
+      .setFontSize(8)
       .setBorder(true, true, true, true, true, true); 
   sheet.getRange('B6')
       .setValue('Activity ID')
@@ -602,13 +630,150 @@ function _setupFloodlightSheet() {
   sheet.getRange('B6:H6')
   .setWrap(true)
   .setBorder(true, true, true, true, true, true)
-  .setFontSize(08)
+  .setFontSize(8)
   .setFontWeight('bold')
   .setVerticalAlignment("top")
   .setNumberFormat('@');
+  setTabColor_(FLOODLIGHT_TAGS_SHEET, TAB_COLOR_DCM);
   return sheet;
 }
 
+/**
+ * Apply color scheme to all tabs based on their purpose.
+ * Safe to run multiple times - will only color existing tabs.
+ */
+function applyTabColorScheme_() {
+  const ss = SpreadsheetApp.getActive();
+  
+  const colorMap = {
+    // Setup
+    'Run Details': TAB_COLOR_SETUP,
+    'Read Me': TAB_COLOR_SETUP,
+    
+    // DCM
+    'Get Floodlight Activities': TAB_COLOR_DCM,
+    'Create Floodlights': TAB_COLOR_DCM,
+    'Download Floodlights': TAB_COLOR_DCM,
+    'Floodlight Tags': TAB_COLOR_DCM,
+    'Audit Default Tags': TAB_COLOR_DCM,
+    'Audit Publisher Tags': TAB_COLOR_DCM,
+    'Floodlight Builder Key': TAB_COLOR_DCM,
+    'DCM – Floodlights': TAB_COLOR_DCM,
+    'DCM – Default Tags': TAB_COLOR_DCM,
+    'DCM – Publisher Tags': TAB_COLOR_DCM,
+    'DCM – Activity (Raw)': TAB_COLOR_DCM,
+    'DCM – Activity (Summary)': TAB_COLOR_DCM,
+    'Patch U-Variables': TAB_COLOR_DCM,
+    'Get Remarketing List': TAB_COLOR_DCM,
+    'Audience QA': TAB_COLOR_DCM,
+    'Build Audience': TAB_COLOR_DCM,
+    
+    // GTM
+    'GTM – Tags': TAB_COLOR_GTM,
+    'GTM – Triggers': TAB_COLOR_GTM,
+    'GTM – Variables': TAB_COLOR_GTM,
+    'GTM – BuiltInVariables': TAB_COLOR_GTM,
+    'GTM – Folders': TAB_COLOR_GTM,
+    'GTM – Templates': TAB_COLOR_GTM,
+    'GTM – Errors': '#CC0000',
+    
+    // Compare
+    'Compare – Matches': TAB_COLOR_COMPARE,
+    'Compare – Only in DCM': TAB_COLOR_COMPARE,
+    'Compare – Only in GTM': TAB_COLOR_COMPARE,
+    'Compare – DCM Activity Health': TAB_COLOR_COMPARE,
+    'Compare - DCM Impression': TAB_COLOR_COMPARE,
+    
+    // System
+    'RAW_JSON': TAB_COLOR_SYSTEM,
+    '_GTM Containers (Mapping)': TAB_COLOR_SYSTEM
+  };
+  
+  const sheets = ss.getSheets();
+  let coloredCount = 0;
+  
+  for (let i = 0; i < sheets.length; i++) {
+    const sh = sheets[i];
+    const name = sh.getName();
+    if (colorMap[name]) {
+      sh.setTabColor(colorMap[name]);
+      coloredCount++;
+    }
+  }
+  
+  toast_(`Applied colors to ${coloredCount} tabs`, 'Tab Colors', 3);
+}
+
+/**
+ * Reorder tabs by category for better UX.
+ * Call this at the end of setupTabs() or as a standalone menu item.
+ */
+function organizeTabOrder_() {
+  const ss = SpreadsheetApp.getActive();
+  
+  // Define desired order (0-indexed positions)
+  const order = [
+    // Setup first
+    { name: 'Run Details', pos: 0, color: TAB_COLOR_SETUP },
+    { name: 'Read Me', pos: 1, color: TAB_COLOR_SETUP },
+    
+    // DCM operational tabs
+    { name: 'Get Floodlight Activities', pos: 2, color: TAB_COLOR_DCM },
+    { name: 'Create Floodlights', pos: 3, color: TAB_COLOR_DCM },
+    { name: 'Download Floodlights', pos: 4, color: TAB_COLOR_DCM },
+    { name: 'Floodlight Tags', pos: 5, color: TAB_COLOR_DCM },
+    { name: 'Audit Default Tags', pos: 6, color: TAB_COLOR_DCM },
+    { name: 'Audit Publisher Tags', pos: 7, color: TAB_COLOR_DCM },
+    { name: 'Floodlight Builder Key', pos: 8, color: TAB_COLOR_DCM },
+    { name: 'Patch U-Variables', pos: 9, color: TAB_COLOR_DCM },
+    { name: 'Get Remarketing List', pos: 10, color: TAB_COLOR_DCM },
+    { name: 'Audience QA', pos: 11, color: TAB_COLOR_DCM },
+    { name: 'Build Audience', pos: 12, color: TAB_COLOR_DCM },
+    { name: 'DCM – Floodlights', pos: 13, color: TAB_COLOR_DCM },
+    { name: 'DCM – Default Tags', pos: 14, color: TAB_COLOR_DCM },
+    { name: 'DCM – Publisher Tags', pos: 15, color: TAB_COLOR_DCM },
+    { name: 'DCM – Activity (Raw)', pos: 16, color: TAB_COLOR_DCM },
+    { name: 'DCM – Activity (Summary)', pos: 17, color: TAB_COLOR_DCM },
+    
+    // GTM tabs
+    { name: 'GTM – Tags', pos: 18, color: TAB_COLOR_GTM },
+    { name: 'GTM – Triggers', pos: 19, color: TAB_COLOR_GTM },
+    { name: 'GTM – Variables', pos: 20, color: TAB_COLOR_GTM },
+    { name: 'GTM – BuiltInVariables', pos: 21, color: TAB_COLOR_GTM },
+    { name: 'GTM – Folders', pos: 22, color: TAB_COLOR_GTM },
+    { name: 'GTM – Templates', pos: 23, color: TAB_COLOR_GTM },
+    { name: 'GTM – Errors', pos: 24, color: '#CC0000' },
+    
+    // Compare tabs
+    { name: 'Compare – Matches', pos: 25, color: TAB_COLOR_COMPARE },
+    { name: 'Compare – Only in DCM', pos: 26, color: TAB_COLOR_COMPARE },
+    { name: 'Compare – Only in GTM', pos: 27, color: TAB_COLOR_COMPARE },
+    { name: 'Compare – DCM Activity Health', pos: 28, color: TAB_COLOR_COMPARE },
+    { name: 'Compare - DCM Impression', pos: 29, color: TAB_COLOR_COMPARE },
+    
+    // System tabs (hidden or at end)
+    { name: 'RAW_JSON', pos: 30, color: TAB_COLOR_SYSTEM },
+    { name: '_GTM Containers (Mapping)', pos: 31, color: TAB_COLOR_SYSTEM }
+  ];
+  
+  let reorderedCount = 0;
+  for (let i = 0; i < order.length; i++) {
+    const item = order[i];
+    const sh = ss.getSheetByName(item.name);
+    if (sh) {
+      ss.setActiveSheet(sh);
+      ss.moveActiveSheet(item.pos + 1); // Google Sheets is 1-indexed
+      if (item.color) sh.setTabColor(item.color);
+      reorderedCount++;
+    }
+  }
+  
+  // Return to first sheet
+  const first = ss.getSheets()[0];
+  if (first) ss.setActiveSheet(first);
+  
+  toast_(`Organized ${reorderedCount} tabs by category`, 'Tab Order', 3);
+}
 
 function debugCm360Env_() {
   Logger.log('Has Dfareporting? ' + !!this.Dfareporting);

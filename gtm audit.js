@@ -9,7 +9,7 @@
  *******************************************************/
 
 /** ======= Names & Constants ======= */
-const RAW_SHEET            = "RAW_JSON";
+var RAW_SHEET            = "RAW_JSON";  // var to allow redeclaration across files
 const README_SHEET         = "Read Me";
 const RUN_DETAILS_SHEET    = "Run Details";
 
@@ -450,6 +450,15 @@ function runGtmAll() {
   autoFormatAndColor_(GTM_TEMPLATES, COLOR_GTM);
   autoFormatAndColor_(GTM_ERRORS, COLOR_GTM);
 
+  // Apply tab colors
+  setTabColor_(GTM_TAGS, TAB_COLOR_GTM);
+  setTabColor_(GTM_TRIGGERS, TAB_COLOR_GTM);
+  setTabColor_(GTM_VARIABLES, TAB_COLOR_GTM);
+  setTabColor_(GTM_FOLDERS, TAB_COLOR_GTM);
+  setTabColor_(GTM_BUILTINS, TAB_COLOR_GTM);
+  setTabColor_(GTM_TEMPLATES, TAB_COLOR_GTM);
+  setTabColor_(GTM_ERRORS, '#CC0000'); // Red for errors
+
   Logger.log(`GTM build completed in ${(new Date() - started)/1000}s`);
 }
 
@@ -667,12 +676,24 @@ function safeJson_(o){ try{return JSON.stringify(o);}catch(e){return String(o);}
  *  CM360 – PULLS & REPORTS
  * ========================= */
 function runCm360All() {
+  // Setup/reset only the 4 sheets we'll populate
+  _setupFloodlightActivitiesSheet();  // Get Floodlight Activities
+  _setupDefaultTagsSheet();           // Audit Default Tags
+  _setupPublisherTagsSheet();         // Audit Publisher Tags
+  // Note: Floodlight Builder Key is created by listGroupsToNewTab() when called
+  
+  // Populate the sheets
   dcmGetFloodlightActivities();
   dcmGetDefaultTags();
   dcmGetPublisherTags();
+  listGroupsToNewTab();               // Floodlight Builder Key
+  
+  // Optional: Activity data and comparison (comment out if not wanted)
   fetchFloodlightActivityLast30();
   buildActivitySummaryAndAnnotate();
   runCompare();
+  
+  SpreadsheetApp.getUi().alert('CM360 flow complete!\n\nSheets populated:\n• Get Floodlight Activities\n• Audit Default Tags\n• Audit Publisher Tags\n• Floodlight Builder Key\n\nFor Create/Download/Tags sheets, use individual menu items.');
 }
 
 /** Floodlight Activities (Advertiser) */
@@ -682,7 +703,7 @@ function dcmGetFloodlightActivities() {
   sh.clear();
 
   const header = [
-    "ID","Name","uVariables","Active",
+    "ID","Name","Advertiser ID","uVariables","Active",
     "Counting Method","Group Name","Group ID",
     "Activity Tag String (cat)","Group Tag String (type)",
     "Expected URL","CacheBustingType",
@@ -698,6 +719,7 @@ function dcmGetFloodlightActivities() {
     const rows = list.map(fa => {
       const id = fa.id;
       const name = fa.name || "";
+      const advId = fa.advertiserId || advertiserId || "";
       const active = fa.hidden ? "Archived" : "Active";
       const counter = fa.countingMethod || "";
       const group = fa.floodlightActivityGroupName || "";
@@ -714,7 +736,7 @@ function dcmGetFloodlightActivities() {
       } catch(e){}
       const hasDefault = (fa.defaultTags && fa.defaultTags.length) ? "Yes" : "No";
       const hasPublisher = (fa.publisherTags && fa.publisherTags.length) ? "Yes" : "No";
-      return [id, name, joinedU, active, counter, group, groupId, tagString, groupTagString, url, cache, hasDefault, hasPublisher, "", "", "", "", ""];
+      return [id, name, advId, joinedU, active, counter, group, groupId, tagString, groupTagString, url, cache, hasDefault, hasPublisher, "", "", "", "", ""];
     });
 
     if (rows.length) { sh.getRange(row,1,rows.length,header.length).setValues(rows); row+=rows.length; }
@@ -749,9 +771,16 @@ function dcmGetDefaultTags() {
     pageToken = resp.nextPageToken;
   } while (pageToken);
 
-  colorizeTab_(sh, COLOR_DCM);
-  autoFormat_(sh);
-  SpreadsheetApp.getUi().alert(`Loaded Default Tags → "${DCM_DEFAULT_TAGS}".`);
+  // If no data rows, delete the sheet
+  if (sh.getLastRow() < 2) {
+    const ss = SpreadsheetApp.getActive();
+    ss.deleteSheet(sh);
+    SpreadsheetApp.getUi().alert(`No Default Tags found for advertiser ${advertiserId}.\n"${DCM_DEFAULT_TAGS}" tab removed.`);
+  } else {
+    colorizeTab_(sh, COLOR_DCM);
+    autoFormat_(sh);
+    SpreadsheetApp.getUi().alert(`Loaded Default Tags → "${DCM_DEFAULT_TAGS}".`);
+  }
 }
 
 /** Publisher Tags */
@@ -785,9 +814,16 @@ function dcmGetPublisherTags() {
     pageToken = resp.nextPageToken;
   } while (pageToken);
 
-  colorizeTab_(sh, COLOR_DCM);
-  autoFormat_(sh);
-  SpreadsheetApp.getUi().alert(`Loaded Publisher Tags → "${DCM_PUBLISHER_TAGS}".`);
+  // If no data rows, delete the sheet
+  if (sh.getLastRow() < 2) {
+    const ss = SpreadsheetApp.getActive();
+    ss.deleteSheet(sh);
+    SpreadsheetApp.getUi().alert(`No Publisher Tags found for advertiser ${advertiserId}.\n"${DCM_PUBLISHER_TAGS}" tab removed.`);
+  } else {
+    colorizeTab_(sh, COLOR_DCM);
+    autoFormat_(sh);
+    SpreadsheetApp.getUi().alert(`Loaded Publisher Tags → "${DCM_PUBLISHER_TAGS}".`);
+  }
 }
 
 
@@ -836,11 +872,13 @@ function writeActivityRaw_(rows){
   if (!rows || !rows.length) {
     sh.getRange(1,1).setValue("No data");
     colorizeTab_(sh, COLOR_ACTIVITY);
+    setTabColor_(DCM_ACTIVITY_RAW, TAB_COLOR_DCM);
     return;
   }
   sh.getRange(1,1,rows.length, rows[0].length).setValues(rows);
   colorizeTab_(sh, COLOR_ACTIVITY);
   autoFormat_(sh);
+  setTabColor_(DCM_ACTIVITY_RAW, TAB_COLOR_DCM);
 }
 
 /** Build summary + annotate Floodlights (unchanged if you already have it) */
@@ -970,6 +1008,7 @@ function buildActivitySummaryAndAnnotate() {
   if (rows.length) sumSh.getRange(2,1,rows.length,sumHeader.length).setValues(rows);
   colorizeTab_(sumSh, COLOR_ACTIVITY);
   autoFormat_(sumSh);
+  setTabColor_(DCM_ACTIVITY_SUM, TAB_COLOR_DCM);
 
   // Annotate Floodlights sheet (write values, not formulas)
   const fl = getSheet_(DCM_FLOODLIGHTS);
@@ -1146,6 +1185,11 @@ function runCompare() {
   writeCompareSheet_(COMP_ONLY_GTM,
     ["src","type","cat","GTM Name","GTM Active","GTM Tag Type","GTM Anomalies"],
     onlyGtm, COLOR_COMPARE);
+
+  // Apply tab colors
+  setTabColor_(COMP_MATCHES, TAB_COLOR_COMPARE);
+  setTabColor_(COMP_ONLY_DCM, TAB_COLOR_COMPARE);
+  setTabColor_(COMP_ONLY_GTM, TAB_COLOR_COMPARE);
 
   SpreadsheetApp.getUi().alert("Compare tabs rebuilt.");
 }

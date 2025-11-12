@@ -6,104 +6,103 @@ function assertTagManagerApi_() {
       !TagManager.Tags) {
     toast_(
       'Tag Manager Advanced Service is not enabled for this script.\n' +
-      'Apps Script → Services (+) → add “Tag Manager”.',
+      'Apps Script → Services (+) → add "Tag Manager".',
       'GTM', 8
     );
     throw new Error('Tag Manager Advanced Service not available.');
   }
 }
 
+/** Alias function for menu compatibility */
+function listAccessibleGtmContainers_() {
+  return refreshGtmContainersDropdown_();
+}
+
+/** Public wrappers (no trailing underscore) for manual Run menu selection */
+function refreshGtmContainersDropdown() {
+  return refreshGtmContainersDropdown_();
+}
+function listAccessibleGtmContainers() {
+  return refreshGtmContainersDropdown_();
+}
 
 // Use the global if it exists; otherwise default.
 var CREATE_FLOODLIGHT_SHEET = this.CREATE_FLOODLIGHT_SHEET || 'Create Floodlights';
 
 
 
-/** Hidden sheet name for GTM mapping */
-const GTM_MAP_SHEET = '_GTM Containers (Mapping)';
+/**
+ * Previous implementation wrote to a hidden mapping sheet. Requirement change:
+ * Surface the accessible GTM containers directly on the Run Details sheet in column L.
+ * Column layout used:
+ *   L4 = "GTM Containers"
+ *   M4 = "Path"
+ *   L5..Ln = labels, M5..Mn = paths
+ * Data validation for Create Floodlights!L2:L now points to Run Details!L5:L.
+ */
+const RUN_DETAILS_CONTAINER_COLUMN = 12; // Column L index
+const RUN_DETAILS_PATH_COLUMN = 13;      // Column M index
 
-/** Ensures mapping sheet exists (hidden) and cleared. Returns the sheet handle. */
-function ensureGtmMapSheet_() {
-  const ss = SpreadsheetApp.getActive();
-  const sh = ss.getSheetByName(GTM_MAP_SHEET) || ss.insertSheet(GTM_MAP_SHEET);
-  sh.clear();
-  sh.getRange(1,1,1,2).setValues([['Label','Path']]).setFontWeight('bold');
-  // Keep it out of the way
-  if (!sh.isSheetHidden()) sh.hideSheet();
-  return sh;
-}
-
-/** Fetch all GTM containers user can edit, and wire dropdowns into Create Floodlights (L/M). */
 function refreshGtmContainersDropdown_() {
   assertTagManagerApi_();
 
-  // Hidden mapping sheet
-  const mapSheet = ensureGtmMapSheet_();
-  const out = [['Label','Path']];
-
-  // List GTM accounts
+  // Collect containers
   var accResp, accounts;
   try {
     accResp = TagManager.Accounts.list();
-    // Some script builds expose `accounts[]`, others `account[]`
     accounts = (accResp && (accResp.accounts || accResp.account)) || [];
   } catch (e) {
     toast_('Unable to list GTM accounts: ' + e, 'GTM', 8);
     return;
   }
 
-  // For each account, list containers
+  var rows = []; // [label, path]
   for (var a = 0; a < accounts.length; a++) {
     var acc = accounts[a];
-    // Prefer acc.path if present; otherwise build from accountId
     var accountPath = acc.path || ('accounts/' + acc.accountId);
-
     var contResp, containers;
     try {
       contResp = TagManager.Containers.list(accountPath);
-      // API returns `container[]`
       containers = (contResp && contResp.container) || [];
     } catch (e) {
-      // Skip this account if containers listing fails
       console.warn('Containers.list failed for ' + accountPath + ': ' + e);
       continue;
     }
-
     for (var c = 0; c < containers.length; c++) {
       var ct = containers[c];
       var label = (ct.name || 'Container') + ' — ' + (ct.containerId || '');
-      // Path looks like "accounts/{a}/containers/{c}"
       var path  = ct.path || ('accounts/' + acc.accountId + '/containers/' + ct.containerId);
-      out.push([label, path]);
+      rows.push([label, path]);
     }
   }
 
-  // Write mapping
-  mapSheet.clear();
-  mapSheet.getRange(1,1,1,2).setValues([['Label','Path']]).setFontWeight('bold');
-  if (out.length > 1) {
-    mapSheet.getRange(2,1,out.length-1,2).setValues(out.slice(1));
+  // Write directly to Run Details sheet (column L/M)
+  var ss = SpreadsheetApp.getActive();
+  var runDetails = ss.getSheetByName(this.RUN_DETAILS_SHEET || 'Run Details') || ss.insertSheet(this.RUN_DETAILS_SHEET || 'Run Details');
+
+  // Clear previous container area (L4:M)
+  var lastRow = runDetails.getMaxRows();
+  runDetails.getRange(4, RUN_DETAILS_CONTAINER_COLUMN, lastRow - 3, 2).clearContent();
+
+  // Headers
+  runDetails.getRange(4, RUN_DETAILS_CONTAINER_COLUMN).setValue('GTM Containers').setFontWeight('bold');
+  runDetails.getRange(4, RUN_DETAILS_PATH_COLUMN).setValue('Path').setFontWeight('bold');
+
+  if (rows.length) {
+    runDetails.getRange(5, RUN_DETAILS_CONTAINER_COLUMN, rows.length, 2).setValues(rows);
   }
-  if (!mapSheet.isSheetHidden()) mapSheet.hideSheet();
 
-  // Bind validation to Create Floodlights!L
-  const ss = SpreadsheetApp.getActive();
-  const cf = ss.getSheetByName(CREATE_FLOODLIGHT_SHEET) || ss.insertSheet(CREATE_FLOODLIGHT_SHEET);
-
-  const lastMapRow = mapSheet.getLastRow();
-  const labelRange = (lastMapRow >= 2)
-    ? mapSheet.getRange(2,1,lastMapRow-1,1)
-    : mapSheet.getRange(2,1,1,1); // empty-safe
-
-  const dv = SpreadsheetApp.newDataValidation()
+  // Bind validation for Create Floodlights sheet to labels range
+  var cf = ss.getSheetByName(CREATE_FLOODLIGHT_SHEET) || ss.insertSheet(CREATE_FLOODLIGHT_SHEET);
+  var labelRange = runDetails.getRange(5, RUN_DETAILS_CONTAINER_COLUMN, Math.max(1, rows.length), 1);
+  var dv = SpreadsheetApp.newDataValidation()
     .requireValueInRange(labelRange, true)
     .setAllowInvalid(false)
     .build();
-
   cf.getRange('L2:L').setDataValidation(dv).setNumberFormat('@');
   cf.getRange('M2:M').setNumberFormat('@');
 
-  toast_('GTM container list refreshed.', 'GTM', 4);
+  toast_('GTM containers listed in Run Details (column L).', 'GTM', 6);
 }
 
 
@@ -196,15 +195,18 @@ function pushFloodlightsToGtm() {
   }
   const data = sh.getRange(2, 1, lastRow - 1, Math.max(13, sh.getLastColumn())).getValues(); // up to M
 
-  // Build a quick map from label -> path from the hidden mapping sheet
-  const mapSh = ss.getSheetByName(GTM_MAP_SHEET);
+  // Build a quick map from label -> path using Run Details (column L/M) fallback
+  const runDetails = ss.getSheetByName(this.RUN_DETAILS_SHEET || 'Run Details');
   const map = Object.create(null);
-  if (mapSh) {
-    const mLast = mapSh.getLastRow();
-    if (mLast >= 2) {
-      const pairs = mapSh.getRange(2,1,mLast-1,2).getValues();
+  if (runDetails) {
+    var rdLast = runDetails.getLastRow();
+    // Expect headers at row 4; data from row 5 downward
+    if (rdLast >= 5) {
+      var pairs = runDetails.getRange(5, RUN_DETAILS_CONTAINER_COLUMN, rdLast - 4, 2).getValues();
       for (var i = 0; i < pairs.length; i++) {
-        map[String(pairs[i][0] || '').trim()] = String(pairs[i][1] || '').trim();
+        var lbl = String(pairs[i][0] || '').trim();
+        var pth = String(pairs[i][1] || '').trim();
+        if (lbl) map[lbl] = pth;
       }
     }
   }

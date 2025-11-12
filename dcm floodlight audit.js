@@ -793,7 +793,7 @@ function generateFloodlightTags(){
   ss.getRange(row=7, column=2, numRows=results.length, numColumns=results[0].length)
   .setWrap(true)
   .setBorder(true, true, true, true, true, true)
-  .setFontSize(08)
+  .setFontSize(8)
   .setVerticalAlignment("top")
   .setNumberFormat('@');
 

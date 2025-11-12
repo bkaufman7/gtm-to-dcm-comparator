@@ -54,6 +54,7 @@ function compareSetupActivityPasteTab_() {
   sh.getRange('G:G').setNumberFormat('yyyy-mm-dd');
   sh.getRange('H:H').setNumberFormat('0');
 
+  setTabColor_(SHEET_IMPRESS_PASTE, TAB_COLOR_COMPARE);
   SpreadsheetApp.getUi().toast('Paste tab ready. Paste your last-30-day DCM report into E:H.', 'Compare', 6);
 }
 
@@ -251,4 +252,5 @@ function buildActivityHealthTab_(gfaIds, gfaNames, agg, threshold) {
   // OK -> no fill (no rule)
 
   sh.setConditionalFormatRules(rules);
+  setTabColor_(SHEET_HEALTH, TAB_COLOR_COMPARE);
 }
