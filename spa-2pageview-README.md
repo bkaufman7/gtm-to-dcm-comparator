@@ -6,6 +6,8 @@ A reusable Google Tag Manager implementation pattern to fire event tags on the s
 
 ## Table of Contents
 
+- [TLDR: 5-Minute Setup (For Non-Engineers)](#tldr-5-minute-setup-for-non-engineers)
+- [Glossary: Where to Find Placeholder Values](#glossary-where-to-find-placeholder-values)
 - [Overview](#overview)
 - [Quick Start (Recommended Default)](#quick-start-recommended-default)
 - [Placeholders You Must Replace](#placeholders-you-must-replace)
@@ -28,6 +30,234 @@ A reusable Google Tag Manager implementation pattern to fire event tags on the s
 - [Testing & Validation](#testing--validation)
 - [Troubleshooting & Pitfalls](#troubleshooting--pitfalls)
 - [Implementation Checklist](#implementation-checklist)
+
+---
+
+## TLDR: 5-Minute Setup (For Non-Engineers)
+
+**What you're building:** A system that fires your marketing tags only when a visitor views their 2nd page, not on the 1st page.
+
+**Why:** Saves money and improves data quality by not firing tags when users immediately bounce.
+
+### Before You Start: Get Your Values
+
+Use the [Glossary](#glossary-where-to-find-placeholder-values) below to find these 3 values. Write them down:
+
+| Value Name | What It Looks Like | Where to Find It |
+|------------|-------------------|------------------|
+| SPA Event Name | `historyChange-v2` | GTM Preview Mode (see glossary) |
+| Counter Key | `spa_page_count` | Pick any short name (lowercase, no spaces) |
+| Event Name | `secondPageview` | Pick any name (this is what you'll see in GTM) |
+
+### Step-by-Step (15 Minutes)
+
+**Step 1: Create the Counter Tag**
+1. In GTM, click **Tags** → **New**
+2. Name it: `Counter - Increment on Navigation`
+3. Click **Tag Configuration** → Choose **Custom HTML**
+4. Copy/paste this code (replace the 3 values with yours):
+
+```html
+<script>
+  var KEY = 'YOUR_COUNTER_KEY_HERE';
+  var pv = sessionStorage.getItem(KEY);
+  var newCount;
+  
+  if (!pv) { 
+    newCount = 1;
+    sessionStorage.setItem(KEY, '1'); 
+  } else { 
+    newCount = parseInt(pv, 10) + 1;
+    sessionStorage.setItem(KEY, String(newCount)); 
+  }
+  
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({
+    'event': 'YOUR_EVENT_NAME_HERE',
+    'pageviewCount': newCount
+  });
+</script>
+```
+
+5. Click **Triggering** → Add TWO triggers:
+   - Click **+** → Choose **All Pages**
+   - Click **+** → Choose **Custom Event** → Type your SPA event name (e.g., `historyChange-v2`)
+6. Click **Save**
+
+**Step 2: Create the Counter Variable**
+1. In GTM, click **Variables** → Scroll to **User-Defined Variables** → Click **New**
+2. Name it: `Counter - Page Count`
+3. Click **Variable Configuration** → Choose **Custom JavaScript**
+4. Copy/paste this code (replace YOUR_COUNTER_KEY_HERE):
+
+```js
+function() {
+  return parseInt(sessionStorage.getItem('YOUR_COUNTER_KEY_HERE') || '0', 10);
+}
+```
+
+5. Click **Save**
+
+**Step 3: Create the 2PageView Trigger**
+1. In GTM, click **Triggers** → **New**
+2. Name it: `Event - Second Pageview`
+3. Click **Trigger Configuration** → Choose **Custom Event**
+4. In **Event name**, type your event name (e.g., `secondPageview`)
+5. Under **This trigger fires on**, choose **Some Custom Events**
+6. Add condition: Choose your counter variable (e.g., `Counter - Page Count`) **equals** `2`
+7. Click **Save**
+
+**Step 4: Connect Your Tags**
+1. Find the tag you want to fire on the 2nd page (e.g., conversion pixel, Meta pixel, etc.)
+2. Open that tag → Click **Triggering**
+3. Click **+** → Find and select **Event - Second Pageview**
+4. Remove other triggers (like "All Pages") if you ONLY want it on page 2
+5. Click **Save**
+
+**Step 5: Test It**
+1. Click **Preview** (top right in GTM)
+2. Enter your website URL
+3. On your site, open DevTools (press F12) → Go to **Console** tab
+4. Type this (replace YOUR_COUNTER_KEY_HERE) and press Enter:
+   ```js
+   sessionStorage.getItem('YOUR_COUNTER_KEY_HERE')
+   ```
+5. You should see `"1"` on the first page
+6. Click a link to go to another page
+7. Run the same command again – you should see `"2"`
+8. Check GTM debugger – your tag should have fired!
+
+**Step 6: Publish**
+1. Close Preview mode
+2. Click **Submit** (top right)
+3. Add a version name like "Added 2nd pageview tracking"
+4. Click **Publish**
+
+Done! Your tags now fire only when users view a 2nd page.
+
+---
+
+## Glossary: Where to Find Placeholder Values
+
+This section tells you exactly where to find or how to create each value you need.
+
+### INSERT.SPA.EVENT.CHANGE (SPA Event Name)
+
+**What it is:** The event name that GTM fires when users navigate between pages in your Single Page App.
+
+**Where to find it:**
+1. In GTM, click **Preview** (top right)
+2. Enter your website URL
+3. On your site, click any navigation link (e.g., go from Home to About page)
+4. In the GTM debugger (left side panel), look at the event list
+5. Look for events with names like:
+   - `historyChange`
+   - `historyChange-v2`
+   - `gtm.historyChange-v2`
+   - (or something similar with "history" or "route")
+6. **That exact name is your SPA event name**
+
+**Example:** If you see `historyChange-v2` in the event list, use `historyChange-v2` everywhere it says `INSERT.SPA.EVENT.CHANGE`
+
+**If you don't see any events:** Your site might use a different navigation method. Contact your developer or use `historyChange-v2` as a starting guess.
+
+---
+
+### INSERT.COUNTER.KEY (Counter Storage Key)
+
+**What it is:** A unique name for storing the page count in the browser. This is like a label on a storage box.
+
+**Where to get it:** You make it up! Just follow these rules:
+- Use lowercase letters only
+- No spaces (use underscores instead)
+- Keep it short and descriptive
+- Make it unique to avoid conflicts with other scripts
+
+**Good examples:**
+- `spa_pv_count`
+- `page_counter`
+- `nav_count_v1`
+- `visit_pageviews`
+
+**Bad examples:**
+- `My Counter` (has space and capital letters)
+- `count` (too generic, might conflict)
+
+**Recommendation:** Use `spa_pv_count` if you're not sure.
+
+---
+
+### INSERT.EVENT.NAME (Custom Event Name)
+
+**What it is:** The name of the custom event that will fire when the counter reaches 2. You'll see this in GTM's debugger.
+
+**Where to get it:** You make it up! Just follow these rules:
+- Use letters and numbers only
+- Can use camelCase (e.g., `secondPageview`) or underscores (e.g., `second_pageview`)
+- Make it descriptive so you know what it means later
+
+**Good examples:**
+- `secondPageview`
+- `2PageView`
+- `engagedUser`
+- `second_page_viewed`
+
+**Bad examples:**
+- `event` (too generic)
+- `second page` (has space)
+
+**Recommendation:** Use `secondPageview` if you're not sure.
+
+---
+
+### INSERT.CONSENT.VAR (Consent Variable)
+
+**What it is:** A GTM variable that tells you if the user has given consent (approved cookies/tracking).
+
+**Where to find it:**
+1. Ask your team: "Do we have a consent management platform (CMP)?" Common ones:
+   - OneTrust
+   - Cookiebot
+   - Google Consent Mode
+2. In GTM, click **Variables** → Look in **User-Defined Variables**
+3. Look for variables with names like:
+   - `CMP - Consent Granted`
+   - `Consent Status`
+   - `Cookie Consent`
+   - `ads_data_consent`
+4. **The name with `{{` and `}}` around it is your consent variable**
+
+**Example:** If you see a variable called "CMP - Marketing Consent", use `{{CMP - Marketing Consent}}`
+
+**If you don't have one:** Skip the consent sections for now, or ask your privacy/compliance team.
+
+---
+
+### INSERT.ALLOWLIST.RULES (Hostname Pattern)
+
+**What it is:** A pattern that matches your production website domain(s) only, blocking test/QA sites.
+
+**Where to get it:** Use your website's domain name.
+
+**How to create it:**
+1. Look at your website URL, like `https://www.example.com/page`
+2. Take just the domain part: `www.example.com`
+3. Format it as: `^(www\.)?example\.com$`
+
+**Examples:**
+
+| Your Website | Pattern to Use |
+|--------------|----------------|
+| `www.example.com` | `^(www\.)?example\.com$` |
+| `shop.mysite.com` | `^shop\.mysite\.com$` |
+| `app.acme.io` | `^app\.acme\.io$` |
+
+**Multiple domains?** Use the `|` symbol:
+```
+^(www\.)?example\.com$|^shop\.mysite\.com$
+```
+
+**If you're not sure:** Leave this blank and skip the hostname blocking section for now.
 
 ---
 
