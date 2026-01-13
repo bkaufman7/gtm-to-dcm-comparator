@@ -16,17 +16,8 @@ A reusable Google Tag Manager implementation pattern to fire event tags on the s
   - [Step 2: Create Counter Read Variable (Custom JS)](#step-2-create-counter-read-variable-custom-js)
   - [Step 3: Create 2PageView Trigger (Custom Event)](#step-3-create-2pageview-trigger-custom-event)
   - [Step 4: Attach Your Event Tags (Generic)](#step-4-attach-your-event-tags-generic)
-- [2PageView Definition Options](#2pageview-definition-options)
-  - [Option A: 2nd Route Change After Initial Load](#option-a-2nd-route-change-after-initial-load)
-  - [Option B: 2nd Pageview Including Initial Load](#option-b-2nd-pageview-including-initial-load)
-- [Consent Strategy Options](#consent-strategy-options)
-  - [Option A: Always Count, Gate Tags by Consent](#option-a-always-count-gate-tags-by-consent)
-  - [Option B: Count Only After Consent](#option-b-count-only-after-consent)
-- [Persistence Options](#persistence-options)
-  - [Option A: Once Per Session (sessionStorage)](#option-a-once-per-session-sessionstorage)
-  - [Option B: Once Per Day (localStorage)](#option-b-once-per-day-localstorage)
-  - [Option C: Once Per User (flag)](#option-c-once-per-user-flag)
-- [Environment Guard (Hostname Blocking)](#environment-guard-hostname-blocking)
+- [2PageView Definition](#2pageview-definition)
+- [Persistence Behavior](#persistence-behavior)
 - [Testing & Validation](#testing--validation)
 - [Troubleshooting & Pitfalls](#troubleshooting--pitfalls)
 - [Implementation Checklist](#implementation-checklist)
@@ -36,8 +27,6 @@ A reusable Google Tag Manager implementation pattern to fire event tags on the s
 ## TLDR: 5-Minute Setup (For Non-Engineers)
 
 **What you're building:** A system that fires your marketing tags only when a visitor views their 2nd page, not on the 1st page.
-
-**Why:** Saves money and improves data quality by not firing tags when users immediately bounce.
 
 ### Before You Start: Get Your Values
 
@@ -79,9 +68,8 @@ Use the [Glossary](#glossary-where-to-find-placeholder-values) below to find the
 </script>
 ```
 
-5. Click **Triggering** → Add TWO triggers:
-   - Click **+** → Choose **All Pages**
-   - Click **+** → Choose **Custom Event** → Type your SPA event name (e.g., `historyChange-v2`)
+5. Click **Triggering** → Click **+** → Choose **Custom Event** → Type your SPA event name (e.g., `historyChange-v2`)
+   - **Note:** If your SPA event doesn't fire on the landing page, also add **All Pages** trigger
 6. Click **Save**
 
 **Step 2: Create the Counter Variable**
@@ -278,10 +266,8 @@ This pattern implements a pageview counter that increments on every SPA navigati
 ## Quick Start (Recommended Default)
 
 **Default Configuration:**
-- **Definition:** 2nd route change AFTER initial load (does not count the initial pageview)
-- **Consent:** Always count; gate event tags by consent
-- **Persistence:** Once per session (sessionStorage)
-- **Environment:** Fire on all hostnames (add blocking later if needed)
+- **Definition:** The page that loads after the initial landing page
+- **Persistence:** Counter resets when browser tab closes (sessionStorage)
 
 Follow the [Core Build Steps](#core-build-steps-required) below using the baseline code samples. After basic implementation, customize using the options sections as needed.
 
@@ -316,8 +302,10 @@ Throughout this document, the following placeholders appear in code samples. Rep
 2. Name: `Tag - SPA Counter Increment`
 3. Tag Configuration: **Custom HTML**
 4. Paste the code below
-5. Triggering: **All Pages** + `INSERT.SPA.EVENT.CHANGE` (add both triggers)
+5. Triggering: `INSERT.SPA.EVENT.CHANGE` (Custom Event trigger)
 6. Save
+
+**Alternative:** If the SPA event does NOT fire on the initial landing page (only on subsequent route changes), add **All Pages** (or **Container Loaded**) as an additional trigger to ensure the counter starts on the landing page.
 
 **Code:**
 
@@ -337,9 +325,9 @@ Throughout this document, the following placeholders appear in code samples. Rep
 This tag fires on the initial page load (All Pages) and every subsequent SPA route change. It reads the current count from sessionStorage, increments it, and writes it back. If no value exists, it initializes to 1.
 
 **What to verify:**
-- Tag fires on **All Pages** (initial load)
 - Tag fires on **INSERT.SPA.EVENT.CHANGE** (route changes)
-- No other triggers attached (unless using consent gating—see options below)
+- If SPA event doesn't fire on landing page, also add **All Pages** trigger
+- No other triggers attached
 
 ---
 
@@ -435,19 +423,7 @@ This updated code pushes a custom event to the dataLayer every time the counter 
 **Instructions:**
 1. Open an existing event tag or create a new one (e.g., GA4 Event, Meta Pixel, custom HTML)
 2. In the **Triggering** section, add: `Trigger - 2PageView`
-3. (Optional) Add consent conditions or blocking triggers
-4. Save and repeat for all tags that should fire on the second pageview
-
-**Generic Event Tag Example:**
-
-```text
-Tag Type: GA4 Event (or any vendor tag)
-Event Name: engaged_user
-Event Parameters:
-  - pageview_count: {{JS - SPA Counter Value}}
-  - engagement_type: second_pageview
-Triggering: Trigger - 2PageView
-```
+3. Save and repeat for all tags that should fire on the second pageview
 
 **Explanation:**
 Event tags configured this way will fire exactly once per session (or per day/user, depending on persistence option) when the user navigates to a second page. This reduces tag fires on single-page bounces and focuses measurement on engaged users.
@@ -459,153 +435,26 @@ Event tags configured this way will fire exactly once per session (or per day/us
 
 ---
 
-## 2PageView Definition Options
+## 2PageView Definition
 
-Choose the definition that best fits your business logic.
-
-### Option A: 2nd Route Change After Initial Load
-
-**When it fires:** On the 2nd SPA navigation event (does NOT count the initial page load).
-
-**Use case:** You want to measure engagement only after a user actively navigates within the SPA. The initial load is not counted as a "pageview" in this context.
-
-**Configuration:**
-- **Increment Tag Triggers:** `INSERT.SPA.EVENT.CHANGE` only (remove All Pages)
-- **Counter starts at:** 0 (first route change increments to 1, second to 2)
-
-**Updated Increment Tag Code:**
-
-```html
-<script>
-  var KEY = 'INSERT.COUNTER.KEY';
-  var pv = sessionStorage.getItem(KEY);
-  var newCount;
-  
-  if (!pv) { 
-    newCount = 1;
-    sessionStorage.setItem(KEY, '1'); 
-  } else { 
-    newCount = parseInt(pv, 10) + 1;
-    sessionStorage.setItem(KEY, String(newCount)); 
-  }
-  
-  window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push({
-    'event': 'INSERT.EVENT.NAME',
-    'pageviewCount': newCount
-  });
-</script>
-```
-
-**Triggering:** `INSERT.SPA.EVENT.CHANGE` only.
+**What "2PageView" means:** The page that loads after the user's initial landing page.
 
 **Behavior:**
-- Initial page load: counter = 0
-- 1st route change: counter = 1
-- 2nd route change: counter = 2 → tags fire
+- User lands on your site (landing page)
+- User clicks a link and navigates to another page (route changes)
+- This second page is when your tags fire
 
-**What to verify:**
-- All Pages is NOT a trigger for the increment tag
-- Tags do not fire until after 2 route changes
-- Preview mode shows counter incrementing only on SPA events
+**How the counter works:**
+- Landing page: counter starts (may be 0 or 1 depending on whether SPA event fires on landing)
+- First route change: counter increments
+- When counter reaches 2: tags fire
+- Subsequent route changes: counter continues incrementing but tags don't fire again
 
----
-
-### Option B: 2nd Pageview Including Initial Load
-
-**When it fires:** On the 1st SPA navigation event (counts the initial load as pageview 1).
-
-**Use case:** You want to count the initial page load as the first pageview. The first route change is the second pageview.
-
-**Configuration:**
-- **Increment Tag Triggers:** `All Pages` + `INSERT.SPA.EVENT.CHANGE` (baseline configuration)
-- **Counter starts at:** 1 on initial load
-
-**Code:** Use the baseline increment tag code from Step 1 (already includes both triggers).
-
-**Behavior:**
-- Initial page load: counter = 1
-- 1st route change: counter = 2 → tags fire
-- 2nd route change: counter = 3 (tags already fired)
-
-**What to verify:**
-- Increment tag fires on All Pages
-- Tags fire on the first route change (2nd pageview total)
-- Counter reaches 2 faster than Option A
+**Important:** The increment tag fires on the SPA event (`INSERT.SPA.EVENT.CHANGE`). If your SPA framework fires this event on the landing page, the counter will start at 1. If it only fires on route changes (not landing), you may need to add the **All Pages** trigger to start the counter on landing.
 
 ---
 
-## Consent Strategy Options
-
-Choose how to integrate consent management.
-
-### Option A: Always Count, Gate Tags by Consent
-
-**When it counts:** Pageview counter increments regardless of consent status.
-
-**When tags fire:** Event tags check consent status via a blocking trigger or consent settings.
-
-**Use case:** You want to track user navigation behavior (counter) even without consent, but only fire marketing tags when consent is granted. Simplest for debugging since the counter always increments.
-
-**Configuration:**
-- **Increment Tag:** No consent conditions (fires always)
-- **Event Tags:** Add consent check via GTM's Consent Settings or a blocking trigger
-
-**Event Tag Consent Blocking Trigger Example:**
-
-Create a blocking trigger:
-
-```text
-Trigger Type: Custom Event
-Event Name: INSERT.EVENT.NAME
-Fire trigger when: {{INSERT.CONSENT.VAR}} does not equal true
-Use as Blocking Trigger: Yes
-```
-
-Attach this blocking trigger to all event tags firing on `Trigger - 2PageView`.
-
-**Explanation:**
-The counter runs freely, so you can always debug and verify counts. Tags only fire when consent is granted. This approach separates counting logic from tag firing logic.
-
-**What to verify:**
-- Increment tag has no consent conditions
-- Event tags have consent blocking triggers or consent settings
-- Preview mode shows counter incrementing even when consent is denied
-- Tags do not fire when `{{INSERT.CONSENT.VAR}}` is false
-
----
-
-### Option B: Count Only After Consent
-
-**When it counts:** Pageview counter increments only after consent is granted.
-
-**When tags fire:** When counter reaches 2 (and consent is implicitly granted).
-
-**Use case:** Strict privacy compliance where no user behavior is tracked without consent.
-
-**Configuration:**
-- **Increment Tag:** Add consent trigger condition
-- **Event Tags:** No additional consent checks needed (counter only increments with consent)
-
-**Updated Increment Tag Triggering:**
-
-Original triggers: `All Pages` + `INSERT.SPA.EVENT.CHANGE`
-
-Add condition to both triggers:
-- Fire trigger when: `{{INSERT.CONSENT.VAR}}` equals `true`
-
-**Explanation:**
-The increment tag only fires when consent is granted. If a user lands on the site without consent and navigates, the counter stays at 0. Once consent is granted, counting begins. Tags fire normally when counter reaches 2.
-
-**What to verify:**
-- Increment tag does not fire without consent
-- Counter stays at 0 until consent granted
-- After consent, counter increments normally
-- Tags fire when counter reaches 2 (after consent)
-
----
-
-## Persistence Options
+## Persistence Behavior
 
 Choose how long the counter persists.
 
@@ -801,48 +650,6 @@ The flag tag checks if the flag has been set. If not, it sets the flag to `true`
 
 ---
 
-## Environment Guard (Hostname Blocking)
-
-**Goal:** Prevent tags from firing on non-production hostnames (QA tools, staging, local dev).
-
-**Use case:** Avoid polluting analytics with internal traffic or test environments.
-
-**Configuration:**
-Create a blocking trigger based on hostname and attach it to event tags (and optionally the increment tag).
-
-**Blocking Trigger:**
-
-```text
-Trigger Type: Page View
-Trigger Name: Trigger - Block Non-Production Hostnames
-Fire trigger when: {{Page Hostname}} does not match RegEx INSERT.ALLOWLIST.RULES
-Use as Blocking Trigger: Yes
-```
-
-**Example Allowlist RegEx:**
-
-```text
-^(www\.)?example\.com$
-```
-
-This matches `example.com` and `www.example.com` only.
-
-**Attach to Event Tags:**
-In each event tag's Exceptions section, add: `Trigger - Block Non-Production Hostnames`
-
-**Optional: Block Increment Tag:**
-If you don't want to count pageviews on non-production hostnames, add the blocking trigger to the increment tag as well.
-
-**Explanation:**
-The blocking trigger prevents tags from firing when the hostname doesn't match the allowlist pattern. This ensures only production traffic triggers your event tags.
-
-**What to verify:**
-- Tags do not fire on QA/staging/local hostnames
-- Tags fire normally on production hostnames
-- Preview mode shows blocking trigger activating on non-allowlisted hostnames
-
----
-
 ## Testing & Validation
 
 **Goal:** Confirm the 2PageView pattern works correctly before publishing.
@@ -913,14 +720,13 @@ localStorage.clear()
 
 ### What to Verify Checklist
 
-- [ ] Increment tag fires on initial load and route changes
+- [ ] Increment tag fires on SPA route changes (and landing page if needed)
 - [ ] Counter variable returns correct integer values
 - [ ] Custom event `INSERT.EVENT.NAME` is pushed to dataLayer when counter increments
 - [ ] 2PageView trigger fires when counter equals 2
-- [ ] Event tags fire exactly once per session (or per day/user, depending on persistence)
+- [ ] Event tags fire exactly once per session
 - [ ] Tags do not fire on subsequent route changes after firing once
-- [ ] Consent checks work (if implemented)
-- [ ] Hostname blocking works (if implemented)
+- [ ] Counter resets when browser tab is closed and reopened
 
 ---
 
@@ -956,16 +762,6 @@ localStorage.clear()
 **Fix:**
 - Use unique counter keys per container (e.g., `spa_pv_count_container1`, `spa_pv_count_container2`)
 - Or ensure only one container manages the counter
-
-### Consent Inconsistencies
-
-**Symptom:** Counter increments but tags don't fire (or vice versa).
-
-**Cause:** Consent strategy mismatch (counter gated by consent but tags are not, or vice versa).
-
-**Fix:**
-- Choose one consent strategy (Option A or Option B) and apply consistently
-- Verify consent variable returns the expected value in Preview Mode
 
 ### Storage Restrictions / Privacy Modes
 
@@ -1013,18 +809,6 @@ localStorage.clear()
 
 **Fix:**
 - Ensure trigger condition is `{{JS - SPA Counter Value}}` **equals** `2` (not greater than or equal)
-- For once-per-user persistence, use the flag approach (Option C)
-
-### Counter Doesn't Reset (localStorage/daily)
-
-**Symptom:** Counter persists across days when using daily persistence.
-
-**Cause:** Date key is not being checked or updated correctly.
-
-**Fix:**
-- Verify the date key is stored in localStorage (`INSERT.COUNTER.KEY_date`)
-- Ensure date format is consistent (YYYY-MM-DD)
-- Test by manually changing the stored date in DevTools and reloading
 
 ---
 
@@ -1032,19 +816,17 @@ localStorage.clear()
 
 Use this checklist to ensure a complete implementation:
 
-- [ ] Replace all placeholders (`INSERT.SPA.EVENT.CHANGE`, `INSERT.COUNTER.KEY`, `INSERT.EVENT.NAME`, etc.) with real values
-- [ ] Create increment tag (Custom HTML) with correct triggers
+- [ ] Replace all placeholders (`INSERT.SPA.EVENT.CHANGE`, `INSERT.COUNTER.KEY`, `INSERT.EVENT.NAME`) with real values
+- [ ] Create increment tag (Custom HTML) with SPA event trigger
+- [ ] Add All Pages trigger if SPA event doesn't fire on landing page
 - [ ] Create counter read variable (Custom JavaScript)
-- [ ] Update increment tag to push custom event to dataLayer
-- [ ] Create 2PageView trigger (Custom Event) with counter condition
+- [ ] Verify increment tag pushes custom event to dataLayer
+- [ ] Create 2PageView trigger (Custom Event) with counter condition equals 2
 - [ ] Attach event tags to 2PageView trigger
-- [ ] Choose and implement 2PageView definition option (A or B)
-- [ ] Choose and implement consent strategy (A or B)
-- [ ] Choose and implement persistence option (A, B, or C)
-- [ ] (Optional) Create and attach hostname blocking trigger
 - [ ] Test in GTM Preview Mode (verify counter, trigger, and tag firing)
 - [ ] Test with DevTools console (check storage values)
-- [ ] Verify tags fire exactly once per intended duration (session/day/user)
+- [ ] Verify tags fire exactly once per session
+- [ ] Test that counter resets when tab is closed and reopened
 - [ ] Submit changes and publish GTM container
 - [ ] Monitor live traffic to confirm tags fire as expected
 
